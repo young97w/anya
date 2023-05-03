@@ -8,6 +8,70 @@ import (
 	"testing"
 )
 
+func TestFindRoute(t *testing.T) {
+	mockHandFunc := func(ctx *Context) {}
+	s := NewHttpServer(":8081")
+
+	testCases := []struct {
+		method string
+		path   string
+	}{
+		{
+			method: http.MethodGet,
+			path:   "/user/home/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/home/*/store",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/:id",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/home/*/store/phone",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/:id",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/:id/:number(\\d+)",
+		},
+	}
+
+	for _, tc := range testCases {
+		s.addRoute(tc.method, tc.path, mockHandFunc)
+	}
+
+	//find star child
+	info, err := s.findRoute(http.MethodGet, "/user/home/hello")
+	assert.NoError(t, err)
+	assert.Equal(t, "*", info.n.path)
+
+	//find param child
+	info, err = s.findRoute(http.MethodGet, "/user/114514")
+	assert.NoError(t, err)
+	assert.Equal(t, "114514", info.params["id"])
+
+	//find regex child
+	info, err = s.findRoute(http.MethodPost, "/114514/hj114514")
+	assert.NoError(t, err)
+	assert.Equal(t, "114514", info.params["number"])
+
+	//find normal child
+	info, err = s.findRoute(http.MethodGet, "/user/home")
+	assert.NoError(t, err)
+	assert.Equal(t, "home", info.n.path)
+
+}
+
 func TestAddRoute(t *testing.T) {
 	mockHandFunc := func(ctx *Context) {}
 	s := NewHttpServer(":8081")
@@ -31,6 +95,10 @@ func TestAddRoute(t *testing.T) {
 		{
 			method: http.MethodGet,
 			path:   "/user/home/*/store/phone",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/",
 		},
 		{
 			method: http.MethodPost,
@@ -77,7 +145,8 @@ func TestAddRoute(t *testing.T) {
 			},
 		},
 		http.MethodPost: {
-			path: "/",
+			path:    "/",
+			handler: mockHandFunc,
 			paramChild: &node{
 				path:    ":id",
 				typ:     nodeParam,
@@ -100,6 +169,21 @@ func TestAddRoute(t *testing.T) {
 	res, ok := compareTree(tree, s.m)
 	assert.Equal(t, true, ok)
 	assert.Equal(t, "", res)
+
+	// invalid cases
+	//重复注册
+	err := s.addRoute(http.MethodPost, "/:id", mockHandFunc)
+	assert.Equal(t, errPathRegistered(":id"), err)
+
+	err = s.addRoute(http.MethodPost, "/", mockHandFunc)
+	assert.Equal(t, errPathRegistered("/"), err)
+
+	//非法路径
+	err = s.addRoute(http.MethodPost, "user", mockHandFunc)
+	assert.Equal(t, errInvalidPath("user"), err)
+
+	err = s.addRoute(http.MethodPost, "/user//hello", mockHandFunc)
+	assert.Equal(t, errInvalidPath("/user//hello"), err)
 
 }
 

@@ -49,7 +49,7 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc, mdl
 	segs := strings.Split(strings.Trim(path, "/"), "/")
 	for _, seg := range segs {
 		if seg == "" {
-			panic(errInvalidPath(path))
+			return errInvalidPath(path)
 		}
 		var err error
 		root, err = r.findOrBuild(root, seg)
@@ -58,6 +58,9 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc, mdl
 		}
 	}
 
+	if root.handler != nil {
+		return errPathRegistered(root.path)
+	}
 	root.handler = handleFunc
 	root.mdls = mdls
 	return nil
@@ -153,7 +156,7 @@ func (r *router) findOrBuild(root *node, seg string) (*node, error) {
 }
 
 func (r *router) findRoute(method, path string) (*nodeInfo, error) {
-	var info *nodeInfo
+	info := &nodeInfo{}
 	//special case
 	var root *node
 	if path == "/" {
@@ -172,6 +175,7 @@ func (r *router) findRoute(method, path string) (*nodeInfo, error) {
 	}
 
 	//start find root
+	root, _ = r.m[method]
 	for _, seg := range strings.Split(strings.Trim(path, "/"), "/") {
 		if seg == "" {
 			return nil, errInvalidPath(seg)
@@ -191,29 +195,36 @@ func (r *router) findRoute(method, path string) (*nodeInfo, error) {
 			if info.params == nil {
 				info.params = make(map[string]string, 4)
 			}
-			info.params[root.param] = param
+			info.params[child.param] = param
 		}
 
 		root = child
 		info.n = root
 	}
-	return nil, errRouteNotExist(path)
+	return info, nil
 }
 
-//第二个bool返回节点是否为nil，第三个为节点是否带参数，第四个为参数
+//第二个bool表示返回节点是否有值，第三个为节点是否带参数，第四个为参数
 func (r *router) findChild(root *node, seg string) (*node, bool, bool, string) {
 	var res *node
 	var ok bool
-	switch root.typ {
-	case nodeStatic:
+	//static node
+	if root.children != nil {
 		res, ok = root.children[seg]
-		return res, ok, false, ""
-	case nodeStar:
-		return root.starChild, root.starChild == nil, false, ""
-	case nodeParam:
-		return root.paramChild, root.paramChild == nil, true, seg
-	case nodeRegex:
-		return root.regChild, root.regChild == nil, true, root.regExp.FindString(seg)
+		if ok {
+			return res, ok, false, ""
+		}
+	}
+
+	// 特殊节点（三选一）
+	switch {
+	case root.starChild != nil:
+		return root.starChild, true, false, ""
+	case root.paramChild != nil:
+		return root.paramChild, true, true, seg
+	case root.regChild != nil:
+		param := root.regChild.regExp.FindString(seg)
+		return root.regChild, true, true, param
 	}
 
 	return nil, false, false, ""
