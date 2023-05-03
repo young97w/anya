@@ -155,7 +155,7 @@ func (r *router) findOrBuild(root *node, seg string) (*node, error) {
 
 }
 
-func (r *router) findRoute(method, path string) (*nodeInfo, error) {
+func (r *router) findRoute(method, path string) (*nodeInfo, bool) {
 	info := &nodeInfo{}
 	//special case
 	var root *node
@@ -163,31 +163,31 @@ func (r *router) findRoute(method, path string) (*nodeInfo, error) {
 		var ok bool
 		root, ok = r.m[method]
 		if !ok {
-			return nil, errInvalidPath(path)
+			return info, false
 		}
 
 		info.n = root
-		return info, nil
+		return info, false
 	}
 
 	if path[0] != '/' {
-		return nil, errInvalidPath(path)
+		return info, false
 	}
 
 	//start find root
 	root, _ = r.m[method]
 	for _, seg := range strings.Split(strings.Trim(path, "/"), "/") {
 		if seg == "" {
-			return nil, errInvalidPath(seg)
+			return info, false
 		}
 
 		child, ok, isParam, param := r.findChild(root, seg)
 		if !ok {
 			//如果是上一个是通配符匹配，回到通配符
 			if root.typ == nodeStar {
-				return info, nil
+				return info, true
 			}
-			return nil, errRouteNotExist(path)
+			return info, false
 		}
 
 		// 添加参数
@@ -201,7 +201,7 @@ func (r *router) findRoute(method, path string) (*nodeInfo, error) {
 		root = child
 		info.n = root
 	}
-	return info, nil
+	return info, true
 }
 
 //第二个bool表示返回节点是否有值，第三个为节点是否带参数，第四个为参数

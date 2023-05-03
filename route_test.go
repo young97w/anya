@@ -51,23 +51,24 @@ func TestFindRoute(t *testing.T) {
 	}
 
 	//find star child
-	info, err := s.findRoute(http.MethodGet, "/user/home/hello")
-	assert.NoError(t, err)
+	info, ok := s.findRoute(http.MethodGet, "/user/home/hello")
+	assert.Equal(t, true, ok)
 	assert.Equal(t, "*", info.n.path)
 
 	//find param child
-	info, err = s.findRoute(http.MethodGet, "/user/114514")
-	assert.NoError(t, err)
+	info, ok = s.findRoute(http.MethodGet, "/user/114514")
+	assert.Equal(t, true, ok)
 	assert.Equal(t, "114514", info.params["id"])
 
 	//find regex child
-	info, err = s.findRoute(http.MethodPost, "/114514/hj114514")
-	assert.NoError(t, err)
+	info, ok = s.findRoute(http.MethodPost, "/114514/hj114514")
+	assert.Equal(t, true, ok)
+
 	assert.Equal(t, "114514", info.params["number"])
 
 	//find normal child
-	info, err = s.findRoute(http.MethodGet, "/user/home")
-	assert.NoError(t, err)
+	info, ok = s.findRoute(http.MethodGet, "/user/home")
+	assert.Equal(t, true, ok)
 	assert.Equal(t, "home", info.n.path)
 
 }

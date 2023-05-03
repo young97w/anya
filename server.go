@@ -1,7 +1,7 @@
 package anya
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -28,10 +28,28 @@ func NewHttpServer(addr string) *HttpServer {
 }
 
 func (s *HttpServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	writer.WriteHeader(http.StatusOK)
-	writer.Write([]byte("waku waku!"))
-	fmt.Println("here")
+	s.serve(writer, request)
+}
 
+func (s *HttpServer) serve(writer http.ResponseWriter, request *http.Request) {
+	ctx := newContext(request, writer)
+	info, ok := s.findRoute(ctx.req.Method, ctx.req.URL.Path)
+	if !ok || info.n == nil {
+		ctx.resp.WriteHeader(http.StatusNotFound)
+		ctx.resp.Write([]byte("4o4 not found"))
+		return
+	}
+
+	ctx.params = info.params
+	ctx.MatchedRoute = info.n.path
+	//add middlewares
+	root := info.n.handler
+	for i := len(s.mdls) - 1; i > -1; i-- {
+		root = s.mdls[i](root)
+	}
+
+	root = flashResp(root)
+	root(ctx)
 }
 
 func (s *HttpServer) GET(path string, handleFunc HandleFunc, mdls ...Middleware) {
@@ -64,4 +82,16 @@ func (s *HttpServer) Start() error {
 }
 
 type HandleFunc func(ctx *Context)
-type Middleware func(handleFunc HandleFunc) HandleFunc
+
+func flashResp(next HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		next(ctx)
+		if ctx.statusCode > 0 {
+			ctx.resp.WriteHeader(ctx.statusCode)
+		}
+		_, err := ctx.resp.Write(ctx.respBody)
+		if err != nil {
+			log.Fatalln("response failed:", err)
+		}
+	}
+}

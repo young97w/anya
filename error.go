@@ -5,6 +5,10 @@ import (
 	"fmt"
 )
 
+var (
+	errBodyNil = errors.New("web: can't read nil body")
+)
+
 func errInvalidPath(path string) error {
 	return errors.New(fmt.Sprintf("web: invalid path: %v", path))
 }
@@ -19,4 +23,8 @@ func errNodeConflict(exist string, current string) error {
 
 func errRouteNotExist(path string) error {
 	return errors.New(fmt.Sprintf("web: path: %v doesn't exist", path))
+}
+
+func errKeyNotExist(key string) error {
+	return errors.New(fmt.Sprintf("web: key: %s not exist", key))
 }
