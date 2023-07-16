@@ -229,3 +229,37 @@ func (r *router) findChild(root *node, seg string) (*node, bool, bool, string) {
 
 	return nil, false, false, ""
 }
+
+func (r *router) mergeMdls() {
+	for _, n := range r.m {
+		mergeMdls(n)
+	}
+}
+
+func mergeMdls(n *node) {
+	// find self *
+	// find child *
+	// child mdls = self + self * + child *
+	arr := []*node{n}
+	for len(arr) > 0 {
+		cur := arr[0]
+		arr = arr[1:]
+		//find self *
+		if cur.starChild != nil && len(cur.starChild.mdls) > 0 {
+			cur.mdls = append(cur.mdls, cur.starChild.mdls...)
+		}
+		// add * to param
+		if cur.paramChild != nil && len(cur.paramChild.mdls) > 0 {
+			cur.paramChild.mdls = append(cur.paramChild.mdls, cur.starChild.mdls...)
+		}
+		// add * to regex
+		if cur.regChild != nil && len(cur.regChild.mdls) > 0 {
+			cur.regChild.mdls = append(cur.regChild.mdls, cur.starChild.mdls...)
+		}
+		//find child
+		for _, child := range cur.children {
+			child.mdls = append(child.mdls, cur.mdls...)
+			arr = append(arr, child)
+		}
+	}
+}

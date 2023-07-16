@@ -277,3 +277,61 @@ func TestHandleFuncCompare(t *testing.T) {
 	assert.Equal(t, reflect.ValueOf(h2.hdf).Pointer(), reflect.ValueOf(h1.hdf).Pointer())
 
 }
+
+func TestAddMdls(t *testing.T) {
+	mockHandFunc := func(ctx *Context) {}
+	tree := map[string]*node{
+		http.MethodGet: {
+			path: "/",
+			children: map[string]*node{
+				"user": {
+					path:       "user",
+					paramChild: &node{path: ":id", typ: nodeParam, param: "id", handler: mockHandFunc},
+					children: map[string]*node{
+						"home": {
+							path: "home",
+							starChild: &node{
+								path:    "*",
+								typ:     nodeStar,
+								handler: mockHandFunc,
+								children: map[string]*node{
+									"store": {
+										path:    "store",
+										typ:     nodeStatic,
+										handler: mockHandFunc,
+										children: map[string]*node{
+											"phone": {
+												path:    "phone",
+												typ:     nodeStatic,
+												handler: mockHandFunc,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		http.MethodPost: {
+			path:    "/",
+			handler: mockHandFunc,
+			paramChild: &node{
+				path:    ":id",
+				typ:     nodeParam,
+				param:   "id",
+				handler: mockHandFunc,
+				regChild: &node{
+					path:    ":number(\\d+)",
+					typ:     nodeRegex,
+					param:   "number",
+					handler: mockHandFunc,
+				},
+			},
+		},
+	}
+
+	r := &router{m: tree}
+	r.mergeMdls()
+}
