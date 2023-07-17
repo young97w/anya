@@ -30,8 +30,8 @@ type testModel struct {
 }
 
 func handleNt(ctx *Context) {
-	data := ctx.FormValue("id")
-	fmt.Println(data.val)
+	ctx.statusCode = 200
+	ctx.respBody = []byte("你好哇")
 }
 
 func formData(ctx *Context) {
