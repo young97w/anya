@@ -44,6 +44,10 @@ func (s *HttpServer) serve(writer http.ResponseWriter, request *http.Request) {
 	ctx.MatchedRoute = info.n.path
 	//add middlewares
 	root := info.n.handler
+	for j := len(info.n.mdls) - 1; j > -1; j-- {
+		root = info.n.mdls[j](root)
+	}
+
 	for i := len(s.mdls) - 1; i > -1; i-- {
 		root = s.mdls[i](root)
 	}
@@ -78,6 +82,7 @@ func (s *HttpServer) Use(mdls ...Middleware) {
 
 func (s *HttpServer) Start() error {
 	// pass s as an instance to tell http package to call method
+	s.mergeMdls()
 	return http.ListenAndServe(s.addr, s)
 }
 

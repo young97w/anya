@@ -245,20 +245,22 @@ func mergeMdls(n *node) {
 		cur := arr[0]
 		arr = arr[1:]
 		//find self *
-		if cur.starChild != nil && len(cur.starChild.mdls) > 0 {
-			cur.mdls = append(cur.mdls, cur.starChild.mdls...)
+		gnrMdls := cur.mdls
+		if cur.starChild != nil {
+			gnrMdls = append(cur.mdls, cur.starChild.mdls...)
+			cur.starChild.mdls = append(cur.mdls, cur.starChild.mdls...)
+			arr = append(arr, cur.starChild)
+		} else if cur.paramChild != nil {
+			cur.paramChild.mdls = append(cur.mdls, cur.paramChild.mdls...)
+			arr = append(arr, cur.paramChild)
+		} else if cur.regChild != nil {
+			cur.regChild.mdls = append(cur.mdls, cur.regChild.mdls...)
+			arr = append(arr, cur.regChild)
 		}
-		// add * to param
-		if cur.paramChild != nil && len(cur.paramChild.mdls) > 0 {
-			cur.paramChild.mdls = append(cur.paramChild.mdls, cur.starChild.mdls...)
-		}
-		// add * to regex
-		if cur.regChild != nil && len(cur.regChild.mdls) > 0 {
-			cur.regChild.mdls = append(cur.regChild.mdls, cur.starChild.mdls...)
-		}
+
 		//find child
 		for _, child := range cur.children {
-			child.mdls = append(child.mdls, cur.mdls...)
+			child.mdls = append(gnrMdls, child.mdls...)
 			arr = append(arr, child)
 		}
 	}

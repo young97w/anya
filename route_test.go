@@ -257,6 +257,15 @@ func compareNode(t, r *node) (string, bool) {
 			return "handler 不相等", false
 		}
 	}
+
+	if len(t.mdls) > 0 {
+		for i, mdl := range t.mdls {
+			if reflect.ValueOf(r.mdls[i]).Pointer() != reflect.ValueOf(mdl).Pointer() {
+				return "middleware 不相等", false
+			}
+		}
+	}
+
 	return "", true
 }
 
@@ -280,13 +289,60 @@ func TestHandleFuncCompare(t *testing.T) {
 
 func TestAddMdls(t *testing.T) {
 	mockHandFunc := func(ctx *Context) {}
-	tree := map[string]*node{
+	testCases := []struct {
+		method string
+		path   string
+		mdls   []Middleware
+	}{
+		{
+			method: http.MethodGet,
+			path:   "/*",
+			mdls:   []Middleware{mdwRoute1},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user",
+			mdls:   []Middleware{mdwRoute2},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/home/*",
+			mdls:   []Middleware{mdwRoute3},
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/home/*/store",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/:id",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/:id/profile",
+		},
+	}
+
+	mTree := map[string]*node{
 		http.MethodGet: {
 			path: "/",
 			children: map[string]*node{
 				"user": {
-					path:       "user",
-					paramChild: &node{path: ":id", typ: nodeParam, param: "id", handler: mockHandFunc},
+					path: "user",
+					paramChild: &node{
+						path:    ":id",
+						typ:     nodeParam,
+						param:   "id",
+						handler: mockHandFunc,
+						mdls:    []Middleware{mdwRoute1, mdwRoute2},
+						children: map[string]*node{
+							"profile": {
+								path:    "profile",
+								handler: mockHandFunc,
+								typ:     nodeStatic,
+								mdls:    []Middleware{mdwRoute1, mdwRoute2},
+							},
+						}},
 					children: map[string]*node{
 						"home": {
 							path: "home",
@@ -299,39 +355,84 @@ func TestAddMdls(t *testing.T) {
 										path:    "store",
 										typ:     nodeStatic,
 										handler: mockHandFunc,
-										children: map[string]*node{
-											"phone": {
-												path:    "phone",
-												typ:     nodeStatic,
-												handler: mockHandFunc,
-											},
-										},
+										mdls:    []Middleware{mdwRoute1, mdwRoute2, mdwRoute3},
 									},
 								},
+								mdls: []Middleware{mdwRoute1, mdwRoute2, mdwRoute3},
 							},
+							mdls: []Middleware{mdwRoute1, mdwRoute2},
 						},
 					},
+					mdls: []Middleware{mdwRoute1, mdwRoute2},
 				},
 			},
-		},
-		http.MethodPost: {
-			path:    "/",
-			handler: mockHandFunc,
-			paramChild: &node{
-				path:    ":id",
-				typ:     nodeParam,
-				param:   "id",
-				handler: mockHandFunc,
-				regChild: &node{
-					path:    ":number(\\d+)",
-					typ:     nodeRegex,
-					param:   "number",
-					handler: mockHandFunc,
-				},
+			starChild: &node{
+				path:       "*",
+				handler:    mockHandFunc,
+				children:   nil,
+				starChild:  nil,
+				paramChild: nil,
+				param:      "",
+				regChild:   nil,
+				regExp:     nil,
+				typ:        0,
+				mdls:       []Middleware{mdwRoute1},
 			},
 		},
 	}
 
-	r := &router{m: tree}
-	r.mergeMdls()
+	s := NewHttpServer(":8081")
+	for _, tc := range testCases {
+		s.addRoute(tc.method, tc.path, mockHandFunc, tc.mdls...)
+	}
+	s.mergeMdls()
+
+	res, ok := compareTree(mTree, s.m)
+	assert.Equal(t, true, ok)
+	assert.Equal(t, "", res)
+}
+
+func mdwRoute1(handleFunc HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		fmt.Println("mdwRoute1 start------")
+		handleFunc(ctx)
+		fmt.Println("mdwRoute1 end--------")
+	}
+}
+
+func mdwRoute2(handleFunc HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		fmt.Println("mdwRoute2 start------")
+		handleFunc(ctx)
+		fmt.Println("mdwRoute2 end--------")
+	}
+}
+
+func mdwRoute3(handleFunc HandleFunc) HandleFunc {
+	return func(ctx *Context) {
+		fmt.Println("mdwRoute3 start------")
+		handleFunc(ctx)
+		fmt.Println("mdwRoute3 end--------")
+	}
+}
+
+func TestMdlsEq(t *testing.T) {
+	arr := []Middleware{mdwRoute1, mdwRoute2, mdwRoute3}
+	root := rootHandleFunc
+	for i := 2; i > -1; i-- {
+		root = arr[i](root)
+	}
+	root(&Context{})
+}
+
+func compareMdls(tMdls, rMdls []Middleware) {
+	for i, mdl := range tMdls {
+		if reflect.ValueOf(rMdls[i]).Type() == reflect.ValueOf(mdl).Type() {
+			fmt.Println("not equal")
+		}
+	}
+}
+
+func rootHandleFunc(*Context) {
+	fmt.Println("root handle func")
 }
